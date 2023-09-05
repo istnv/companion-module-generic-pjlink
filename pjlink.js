@@ -49,7 +49,7 @@ class PJInstance extends InstanceBase {
 	startup(config) {
 		this.config = config
 
-		this.DebugLevel = process.env.DEVELOPER ? 2 : 0
+		this.DebugLevel = process.env.DEVELOPER || this.config.debug ? 2 : 0
 
 		this.projector = {}
 		this.projector.lamps = []
@@ -614,6 +614,12 @@ class PJInstance extends InstanceBase {
 				label: 'Enter polling time in seconds',
 				default: 10,
 			},
+			{
+				type: 'checkbox',
+				id: 'debug',
+				label: 'Enable extra debugging messages?',
+				default: false,
+			}
 		]
 	}
 
