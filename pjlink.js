@@ -386,8 +386,9 @@ class PJInstance extends InstanceBase {
 									label: `${inClass}-${classCount[classNum]} (${p})`,
 								})
 							}
-							this.updateActions = true
 							this.needInputs = false
+							// got full list of input names from PJ, update dynamic content
+							this.updateDynamicContent() // Update all dynamic content
 							break
 						case '%2INST':
 							this.needInputs = false
@@ -401,7 +402,10 @@ class PJInstance extends InstanceBase {
 								let num = this.projector.inputNames[idx].id
 								this.projector.inputNames[idx].label = `${resp} (${num})`
 								this.haveNames += 1
-								this.updateActions = this.projector.inputNames.length == this.haveNames
+								// got full list of input names from PJ, update dynamic content
+								if (this.projector.inputNames.length == this.haveNames) {
+									this.updateDynamicContent() // Update all dynamic content
+								}
 							}
 							break
 						case '%1POWR':
@@ -1345,11 +1349,6 @@ class PJInstance extends InstanceBase {
 			this.lastHours = Date.now()
 		}
 
-		// got full list of input names from PJ, update action dropdown
-		if (this.updateActions) {
-			this.updateDynamicContent() // Update all dynamic content
-			this.updateActions = false // only need once
-		}
 		// resend passcode if using
 
 		//Query Power
