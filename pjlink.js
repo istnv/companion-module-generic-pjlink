@@ -79,9 +79,7 @@ class PJInstance extends InstanceBase {
 		this.commands = []
 
 		this.init_variables()
-		this.init_feedbacks()
-		this.buildActions() // export actions
-		this.buildPresets() // export presets
+		this.updateDynamicContent() // Update all dynamic content
 		this.init_tcp()
 	}
 
@@ -657,6 +655,17 @@ class PJInstance extends InstanceBase {
 				default: false,
 			},
 		]
+	}
+
+	/**
+	 * Update dynamic content
+	 *
+	 * @since 2.6.0
+	 */
+	updateDynamicContent() {
+		this.init_feedbacks() // rebuild feedbacks
+		this.buildActions() // reload actions
+		this.buildPresets() // export presets
 	}
 
 	/**
@@ -1338,8 +1347,7 @@ class PJInstance extends InstanceBase {
 
 		// got full list of input names from PJ, update action dropdown
 		if (this.updateActions) {
-			this.buildActions() // reload actions
-			this.init_feedbacks() // rebuild feedbacks
+			this.updateDynamicContent() // Update all dynamic content
 			this.updateActions = false // only need once
 		}
 		// resend passcode if using
