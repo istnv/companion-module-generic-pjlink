@@ -14,6 +14,10 @@ function stamp() {
 	return `${d.getMinutes()}:${d.getSeconds()}.${d.getMilliseconds()}`
 }
 
+function splitCmd(cmd) {
+	return cmd.split(/[=\ ]/)[0]
+}
+
 class PJInstance extends InstanceBase {
 	constructor(internal) {
 		super(internal)
@@ -72,8 +76,10 @@ class PJInstance extends InstanceBase {
 		this.badPassword = false
 		this.projector.freezeState = '0'
 		this.projector.muteState = '00'
+		this.projector.powerState = '0'
 
 		this.projector.inputNames = CONFIG.INPUTS
+		this.projector.inputNum = 0
 		this.needInputs = true
 
 		this.commands = []
@@ -124,18 +130,16 @@ class PJInstance extends InstanceBase {
 				this.lastStatus = InstanceStatus.Ok + ';Auth'
 			}
 
-			// send first command with (or without) auth password
-			this.lastCmd = '%1POWR ?'
-			this.socket?.send(this.passwordstring + this.lastCmd + '\r').then(() => {
-				this.getProjectorDetails()
+			//Query Projector Class
+			await this.sendCmd('%1CLSS ?')
 				if (this.poll_interval) {
 					clearInterval(this.poll_interval)
 					delete this.poll_interval
 				}
+			await this.poll()
 				this.pollTime = this.config.pollTime ? this.config.pollTime * 1000 : 10000
-				this.poll_interval = setInterval(this.poll.bind(this), this.pollTime) //ms for poll
-				this.poll()
-			})
+			this.poll_interval = setInterval(this.poll.bind(this), 50) //ms for poll
+			// })
 		}
 		if (typeof cb == 'function') {
 			cb()
@@ -229,6 +233,7 @@ class PJInstance extends InstanceBase {
 					delete this.restartTimer
 				}
 				this.authOK = false
+				this.lastQuery = null
 			})
 
 			this.socket.on('end', () => {
@@ -332,20 +337,18 @@ class PJInstance extends InstanceBase {
 				} else if (data.match(/^PJLINK*/i)) {
 					// auth password setup
 					this.check_auth(data, cb)
+					return
 				} else {
 					let cmd = data.slice(0, 6).toUpperCase()
 					let resp = data.slice(7) // leave case alone for labels
 					// PJ returns 'OK' when command is accepted
 					// we need the status response
-					if ('OK' == resp) {
-						return
-					}
-
+					if ('OK' != resp) {
 					switch (cmd) {
 						case '%1CLSS':
 							this.projector.class = resp
 							this.setVariableValues({ projectorClass: resp })
-							this.socket.emit('projectorClass')
+								await this.getProjectorDetails()
 							break
 						case '%1NAME':
 							this.projector.name = resp
@@ -430,8 +433,8 @@ class PJInstance extends InstanceBase {
 							}
 							// PJ went from off/warm to powered on, initial Query Mute Status and input
 							if (['01', '31'].includes(powerTransition)) {
-								this.sendCmd('%1AVMT ?')
-								this.sendCmd(`%${this.projector.class}INPT ?`)
+									await this.sendCmd('%1AVMT ?')
+									await this.sendCmd(`%${this.projector.class}INPT ?`)
 							}
 							break
 						case '%1INPT':
@@ -536,16 +539,20 @@ class PJInstance extends InstanceBase {
 							break
 					}
 				}
+				}
 
-				if (this.commands.length) {
-					if (this.lastCmd != data.slice(0, 6)) {
+				if (this.lastCmd != null && this.lastCmd != splitCmd(data)) {
 						this.log('debug', `Response mismatch, expected ${this.lastCmd}`)
+				} else {
+					this.lastCmd = null
 					}
+
+				if (this.commands.length > 0) {
 					let nextCmd = this.commands.shift()
 					if (this.DebugLevel >= 1) {
-						this.log('debug', `PJLINK: > ${nextCmd}`)
+						this.log('debug', `PJLINK: >> ${nextCmd}`)
 					}
-					this.lastCmd = nextCmd.slice(0, 6)
+					this.lastCmd = splitCmd(nextCmd)
 					await this.socket?.send(this.passwordstring + nextCmd + '\r')
 				} else {
 					if (this.socketTimer) {
@@ -558,13 +565,15 @@ class PJInstance extends InstanceBase {
 						if (this.socket === undefined || !this.socket?.isConnected) {
 							return
 						}
-						if (this.commands.length > 0) {
+						if (this.lastCmd == null && this.commands.length > 0) {
 							let cmd = this.commands.shift()
 							this.connect_time = Date.now()
-							this.lastCmd = cmd.slice(0, 6)
+							this.lastCmd = splitCmd(cmd)
 							await this.socket.send(this.passwordstring + cmd + '\r')
 							clearInterval(this.socketTimer)
 							delete this.socketTimer
+						} else {
+							this.lastCmd = null
 						}
 
 						// istnv: an old version of the documentation stated 4 seconds.
@@ -598,6 +607,7 @@ class PJInstance extends InstanceBase {
 
 	async sendCmd(cmd) {
 		let sent = false
+		let cued = this.commands.length
 
 		if (this.DebugLevel >= 1) {
 			this.log('debug', `PJLINK: >> ${stamp()} ${cmd}`)
@@ -612,10 +622,12 @@ class PJInstance extends InstanceBase {
 			return
 		} else if (!this.authOK) {
 			return
-		} else if (this.pjConnected) {
+		} else if (this.lastCmd == null && cued == 0 && this.pjConnected) {
+			// no outstanding commands, send immediately
 			try {
 				await this.socket.send(this.passwordstring + cmd + '\r')
 				sent = true
+				this.lastCmd = splitCmd(cmd)
 			} catch (error) {
 				// connected but not ready :/
 				if (error.code == 'EPIPE') {
@@ -623,6 +635,7 @@ class PJInstance extends InstanceBase {
 				}
 			}
 		}
+
 		if (!sent && !this.commands.includes(cmd)) {
 			this.commands.push(cmd)
 		}
@@ -782,7 +795,7 @@ class PJInstance extends InstanceBase {
 				feedbacks: [
 					{
 						feedbackId: 'projectorInput',
-						style: {
+						defaultStyle: {
 							color: foregroundColorAlternative,
 							bgcolor: backgroundColorAlternative,
 						},
@@ -1290,12 +1303,6 @@ class PJInstance extends InstanceBase {
 	}
 
 	async getProjectorDetails() {
-		//Query Projector Class
-		await this.sendCmd('%1CLSS ?')
-		//	await this.sendCmd('%1AVMT ?')
-
-		//Projector Class dependant initial queries
-		this.socket.on('projectorClass', async () => {
 			//any class
 
 			//Query Projector Name
@@ -1323,7 +1330,6 @@ class PJInstance extends InstanceBase {
 				//Query Recommended Resolution
 				await this.sendCmd('%2RRES ?')
 			}
-		})
 	}
 
 	async poll() {
@@ -1344,13 +1350,17 @@ class PJInstance extends InstanceBase {
 			return
 		}
 
+		// time for next query?
+		if (this.lastQuery !== null && Date.now() < this.lastQuery + this.pollTime) {
+			// delay 'poll' time before next query
+			return
+		}
+
 		// first time or every 10 minutes
 		if (this.lastHours === undefined || Date.now() - this.lastHours > 600000) {
 			checkHours = true
 			this.lastHours = Date.now()
 		}
-
-		// resend passcode if using
 
 		//Query Power
 		await this.sendCmd('%1POWR ?')
@@ -1361,7 +1371,7 @@ class PJInstance extends InstanceBase {
 		// -- I was going to add this to the 10 minute check
 		// -- but the response includes the lamp on status
 		// Laser PJ does not have a 'lamp'
-		if (checkHours && !this.projector.isLaser) {
+		if (!this.projector.isLaser) {
 			await this.sendCmd('%1LAMP ?')
 		}
 
@@ -1386,6 +1396,7 @@ class PJInstance extends InstanceBase {
 				this.sendCmd('%2FILT ?')
 			}
 		}
+		this.lastQuery = Date.now()
 
 		// log('debug','this.projector is', this.projector)
 	}
