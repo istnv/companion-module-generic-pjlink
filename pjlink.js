@@ -34,7 +34,7 @@ class PJInstance extends InstanceBase {
 	}
 
 	// When module gets deleted
-	destroy(restart) {
+	async destroy(restart) {
 		if (this.socket !== undefined) {
 			this.socket.destroy()
 			delete this.socket
@@ -613,7 +613,7 @@ class PJInstance extends InstanceBase {
 			this.log('debug', `PJLINK: >> ${stamp()} ${cmd}`)
 		}
 		if (this.DebugLevel >= 2) {
-			if (this.commands.length > 0) {
+			if (cued > 0) {
 				this.log('debug', `this.commands is ${this.commands}`)
 			}
 		}
@@ -684,6 +684,7 @@ class PJInstance extends InstanceBase {
 		this.init_feedbacks() // rebuild feedbacks
 		this.buildActions() // reload actions
 		this.buildPresets() // export presets
+		this.init_variables(true) // add input names
 	}
 
 	/**
@@ -829,7 +830,7 @@ class PJInstance extends InstanceBase {
 				feedbacks: [
 					{
 						feedbackId: 'muteState',
-						style: {
+						defaultStyle: {
 							color: foregroundColorAlternative,
 							bgcolor: backgroundColorAlternative,
 						},
@@ -916,7 +917,7 @@ class PJInstance extends InstanceBase {
 		// log('debug','action():', action);
 	}
 
-	init_variables() {
+	init_variables(rebuild = false) {
 		var variables = []
 
 		variables.push({
@@ -1120,6 +1121,8 @@ class PJInstance extends InstanceBase {
 		})
 
 		this.setVariableDefinitions(variables)
+
+		if (!rebuild) {
 		this.setVariableValues({
 			freezeState: 'N/A',
 			serialNumber: 'N/A',
@@ -1133,14 +1136,15 @@ class PJInstance extends InstanceBase {
 			recVertRes: 'N/A',
 		})
 	}
+	}
 
 	init_feedbacks() {
 		const feedbacks = {
 			errors: {
 				type: 'boolean',
-				name: 'Change colors based on Error status',
-				description: 'Change colors based on Error status',
-				style: {
+				name: 'Error status',
+				description: 'Indicate Error status',
+				defaultStyle: {
 					color: combineRgb(255, 255, 255),
 					bgcolor: combineRgb(200, 0, 0),
 				},
@@ -1160,15 +1164,15 @@ class PJInstance extends InstanceBase {
 						choices: ar2obj(CONFIG.ERROR_STATE),
 					},
 				],
-				callback: (feedback, context) => {
+				callback: async (feedback, context) => {
 					return this.projector[feedback.options.error] == feedback.options.errorState
 				},
 			},
 			freezeState: {
 				type: 'boolean',
-				name: 'Change colors based on Freeze status',
-				description: 'Change colors based on Freeze status',
-				style: {
+				name: 'Freeze status',
+				description: 'Indicate Freeze status',
+				defaultStyle: {
 					color: combineRgb(255, 255, 255),
 					bgcolor: combineRgb(0, 200, 0),
 				},
@@ -1181,15 +1185,15 @@ class PJInstance extends InstanceBase {
 						choices: ar2obj(CONFIG.ON_OFF_STATE),
 					},
 				],
-				callback: (feedback, context) => {
+				callback: async (feedback, context) => {
 					return this.projector.freezeState == feedback.options.freezeState
 				},
 			},
 			lampHour: {
 				type: 'boolean',
-				name: 'Change colors based on Lamp hours greater than hours',
-				description: 'Change colors based on Lamp hours greater than hours',
-				style: {
+				name: 'Lamp hours over',
+				description: 'Indicate Lamp hours greater than hours',
+				defaultStyle: {
 					color: combineRgb(255, 255, 255),
 					bgcolor: combineRgb(0, 200, 0),
 				},
@@ -1256,15 +1260,14 @@ class PJInstance extends InstanceBase {
 					},
 				],
 				callback: async (feedback, context) => {
-					this.log('debug', `:::::Lamp ${feedback.options.lamp} is ${this.projector.lamps[feedback.options.lamp].on}`)
 					return this.projector.lamps[feedback.options.lamp].on == (feedback.options.opt == '1' ? 'On' : 'Off')
 				},
 			},
 			muteState: {
 				type: 'boolean',
-				name: 'Change colors based on Mute status',
-				description: 'Change colors based on Mute status',
-				style: {
+				name: 'Mute status',
+				description: 'Indicate Mute status',
+				defaultStyle: {
 					color: combineRgb(255, 255, 255),
 					bgcolor: combineRgb(0, 200, 0),
 				},
@@ -1284,7 +1287,7 @@ class PJInstance extends InstanceBase {
 						choices: ar2obj(CONFIG.ON_OFF_STATE),
 					},
 				],
-				callback: (feedback, context) => {
+				callback: async (feedback, context) => {
 					// A/V is 'open' only if both are open
 					// A is open either A or A/V
 					// V is open either V or A/V
@@ -1295,9 +1298,9 @@ class PJInstance extends InstanceBase {
 			},
 			projectorInput: {
 				type: 'boolean',
-				name: 'Change colors based on Projector Input',
-				description: 'Change colors based on Projector Input',
-				style: {
+				name: 'Projector Input',
+				description: 'Indicate Projector on Input',
+				defaultStyle: {
 					color: combineRgb(255, 255, 255),
 					bgcolor: combineRgb(0, 200, 0),
 				},
@@ -1310,15 +1313,15 @@ class PJInstance extends InstanceBase {
 						choices: this.projector.inputNames,
 					},
 				],
-				callback: (feedback, context) => {
+				callback: async (feedback, context) => {
 					return this.projector.inputNum == feedback.options.inputNum
 				},
 			},
 			powerState: {
 				type: 'boolean',
-				name: 'Change colors based on Power status',
-				description: 'Change colors based on Power status',
-				style: {
+				name: 'Power status',
+				description: 'Indicate Power status',
+				defaultStyle: {
 					color: combineRgb(255, 255, 255),
 					bgcolor: combineRgb(0, 200, 0),
 				},
@@ -1331,7 +1334,7 @@ class PJInstance extends InstanceBase {
 						choices: ar2obj(CONFIG.POWER_STATE),
 					},
 				],
-				callback: (feedback, context) => {
+				callback: async (feedback, context) => {
 					return this.projector.powerState === feedback.options.powerState
 				},
 			},
@@ -1439,13 +1442,13 @@ class PJInstance extends InstanceBase {
 		// log('debug','this.projector is', this.projector)
 	}
 
-	getInputName(inputs) {
+	async getInputName(inputs) {
 		// class 2 names the inputs, so start with an empty list
 		this.projector.inputNames = []
 		this.haveNames = 0
 		for (const element of inputs) {
 			this.projector.inputNames.push({ id: element, label: null })
-			this.sendCmd('%2INNM ?' + element)
+			await this.sendCmd('%2INNM ?' + element)
 		}
 	}
 }
