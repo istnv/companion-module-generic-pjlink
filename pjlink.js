@@ -475,7 +475,7 @@ class PJInstance extends InstanceBase {
 									[`lamp${thisLamp + 1}On`]: 'N/A',
 								})
 							}
-							this.checkFeedbacks('lampHour')
+							this.checkFeedbacks('lampHour', 'lampState')
 							break
 						case '%2IRES':
 							res = resp.split('x')
@@ -1218,8 +1218,46 @@ class PJInstance extends InstanceBase {
 						min: 0,
 					},
 				],
-				callback: (feedback, context) => {
+				callback: async (feedback, context) => {
 					return this.projector.lamps[feedback.options.lamp].hours > feedback.options.lampHour
+				},
+			},
+			lampState: {
+				type: 'boolean',
+				name: 'Lamp Status',
+				description: 'Indicate Lamp Status',
+				defaultStyle: {
+					color: combineRgb(255, 255, 255),
+					bgcolor: combineRgb(0, 200, 0),
+				},
+				options: [
+					{
+						type: 'dropdown',
+						label: 'Lamp',
+						id: 'lamp',
+						default: '1',
+						choices: [
+							{ id: '1', label: 'Lamp 1' },
+							{ id: '2', label: 'Lamp 2' },
+							{ id: '3', label: 'Lamp 3' },
+							{ id: '4', label: 'Lamp 4' },
+							{ id: '5', label: 'Lamp 5' },
+							{ id: '6', label: 'Lamp 6' },
+							{ id: '7', label: 'Lamp 7' },
+							{ id: '8', label: 'Lamp 8' },
+						],
+					},
+					{
+						type: 'dropdown',
+						label: 'Status',
+						id: 'opt',
+						default: '1',
+						choices: ar2obj(CONFIG.ON_OFF_STATE),
+					},
+				],
+				callback: async (feedback, context) => {
+					this.log('debug', `:::::Lamp ${feedback.options.lamp} is ${this.projector.lamps[feedback.options.lamp].on}`)
+					return this.projector.lamps[feedback.options.lamp].on == (feedback.options.opt == '1' ? 'On' : 'Off')
 				},
 			},
 			muteState: {
