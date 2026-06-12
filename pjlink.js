@@ -597,7 +597,7 @@ class PJInstance extends InstanceBase {
 	}
 
 	async sendCmd(cmd) {
-		let sent = true
+		let sent = false
 
 		if (this.DebugLevel >= 1) {
 			this.log('debug', `PJLINK: >> ${stamp()} ${cmd}`)
@@ -611,10 +611,11 @@ class PJInstance extends InstanceBase {
 		if (this.badPassword) {
 			return
 		} else if (!this.authOK) {
-			sent = false
+			return
 		} else if (this.pjConnected) {
 			try {
 				await this.socket.send(this.passwordstring + cmd + '\r')
+				sent = true
 			} catch (error) {
 				// connected but not ready :/
 				if (error.code == 'EPIPE') {
@@ -650,7 +651,7 @@ class PJInstance extends InstanceBase {
 				type: 'number',
 				id: 'pollTime',
 				label: 'Enter polling time in seconds',
-				default: 10,
+				default: 5,
 			},
 			{
 				type: 'checkbox',
