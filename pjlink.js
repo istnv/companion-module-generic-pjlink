@@ -89,7 +89,7 @@ class PJInstance extends InstanceBase {
 		this.init_tcp()
 	}
 
-	check_auth(data, cb) {
+	async check_auth(data, cb) {
 		let code = []
 		let restart = 15000
 
@@ -132,12 +132,12 @@ class PJInstance extends InstanceBase {
 
 			//Query Projector Class
 			await this.sendCmd('%1CLSS ?')
-				if (this.poll_interval) {
-					clearInterval(this.poll_interval)
-					delete this.poll_interval
-				}
+			if (this.poll_interval) {
+				clearInterval(this.poll_interval)
+				delete this.poll_interval
+			}
 			await this.poll()
-				this.pollTime = this.config.pollTime ? this.config.pollTime * 1000 : 10000
+			this.pollTime = this.config.pollTime ? this.config.pollTime * 1000 : 10000
 			this.poll_interval = setInterval(this.poll.bind(this), 50) //ms for poll
 			// })
 		}
@@ -349,208 +349,208 @@ class PJInstance extends InstanceBase {
 					// PJ returns 'OK' when command is accepted
 					// we need the status response
 					if ('OK' != resp) {
-					switch (cmd) {
-						case '%1CLSS':
-							this.projector.class = resp
-							this.setVariableValues({ projectorClass: resp })
+						switch (cmd) {
+							case '%1CLSS':
+								this.projector.class = resp
+								this.setVariableValues({ projectorClass: resp })
 								await this.getProjectorDetails()
-							break
-						case '%1NAME':
-							this.projector.name = resp
-							this.setVariableValues({ projectorName: resp })
-							break
-						case '%1INF1':
-							this.projector.make = resp
-							this.setVariableValues({ projectorMake: resp })
-							break
-						case '%1INF2':
-							this.projector.model = resp
-							this.setVariableValues({ projectorModel: resp })
-							break
-						case '%1INFO':
-							this.projector.other = resp
-							this.setVariableValues({ projectorOther: resp })
-							break
-						case '%2RLMP':
-							this.projector.lampReplacement = resp
-							this.setVariableValues({ lampReplacement: resp })
-							break
-						case '%2RFIL':
-							this.projector.filterReplacement = resp
-							this.setVariableValues({ filterReplacement: resp })
-							break
-						case '%1INST':
-							this.projector.availInputs = resp.split(' ')
-							// class 1 does not report names
-							// so re-build a generic input list for this PJ
-							let classCount = new Array(Object.keys(CONFIG.INPUT_CLASS).length).fill(0)
-							this.projector.inputNames.length = 0
-							for (let p of this.projector.availInputs) {
-								let classNum = p[0]
-								let inClass = CONFIG.INPUT_CLASS[classNum]
-								classCount[classNum] += 1
-								this.projector.inputNames.push({
-									id: p,
-									label: `${inClass}-${classCount[classNum]} (${p})`,
-								})
-							}
-							this.needInputs = false
-							// got full list of input names from PJ, update dynamic content
-							this.updateDynamicContent() // Update all dynamic content
-							break
-						case '%2INST':
-							this.needInputs = false
-							this.projector.availInputs = resp.split(' ')
-							// get input names from PJ
-							this.getInputName(this.projector.availInputs)
-							break
-						case '%2INNM':
-							if (this.projector.inputNames.length > this.haveNames) {
-								let idx = this.projector.inputNames.findIndex((o) => o.label === null)
-								let num = this.projector.inputNames[idx].id
-								this.projector.inputNames[idx].label = `${resp} (${num})`
-								this.haveNames += 1
-								// got full list of input names from PJ, update dynamic content
-								if (this.projector.inputNames.length == this.haveNames) {
-									this.updateDynamicContent() // Update all dynamic content
+								break
+							case '%1NAME':
+								this.projector.name = resp
+								this.setVariableValues({ projectorName: resp })
+								break
+							case '%1INF1':
+								this.projector.make = resp
+								this.setVariableValues({ projectorMake: resp })
+								break
+							case '%1INF2':
+								this.projector.model = resp
+								this.setVariableValues({ projectorModel: resp })
+								break
+							case '%1INFO':
+								this.projector.other = resp
+								this.setVariableValues({ projectorOther: resp })
+								break
+							case '%2RLMP':
+								this.projector.lampReplacement = resp
+								this.setVariableValues({ lampReplacement: resp })
+								break
+							case '%2RFIL':
+								this.projector.filterReplacement = resp
+								this.setVariableValues({ filterReplacement: resp })
+								break
+							case '%1INST':
+								this.projector.availInputs = resp.split(' ')
+								// class 1 does not report names
+								// so re-build a generic input list for this PJ
+								let classCount = new Array(Object.keys(CONFIG.INPUT_CLASS).length).fill(0)
+								this.projector.inputNames.length = 0
+								for (let p of this.projector.availInputs) {
+									let classNum = p[0]
+									let inClass = CONFIG.INPUT_CLASS[classNum]
+									classCount[classNum] += 1
+									this.projector.inputNames.push({
+										id: p,
+										label: `${inClass}-${classCount[classNum]} (${p})`,
+									})
 								}
-							}
-							break
-						case '%1POWR':
-							let powerTransition = this.projector.powerState + resp
-							this.projector.powerState = resp
-							this.setVariableValues({ powerState: CONFIG.POWER_STATE[resp] })
-							this.checkFeedbacks('powerState')
-							// reset warning (if any)
-							if (resp == '1' && this.lastStatus != InstanceStatus.Ok + ';Auth') {
-								this.updateStatus(InstanceStatus.Ok, 'Auth OK')
-								this.lastStatus = InstanceStatus.Ok + ';Auth'
-								this.badPassword = false
-							} else if (resp == '0' && this.lastStatus != InstanceStatus.Ok + ';Off') {
-								this.updateStatus(InstanceStatus.Ok, 'PJ Standby')
-								this.lastStatus = InstanceStatus.Ok + ';Off'
-							} else if (resp == '2' && this.lastStatus != InstanceStatus.Ok + ';Cool') {
-								this.updateStatus(InstanceStatus.Ok, 'PJ Cooling')
-								this.lastStatus = InstanceStatus.Ok + ';Cool'
-							} else if (resp == '3' && this.lastStatus != InstanceStatus.Ok + ';Warm') {
-								this.updateStatus(InstanceStatus.Ok, 'PJ Warmup')
-								this.lastStatus = InstanceStatus.Ok + ';Warm'
-							}
-							// PJ went from off/warm to powered on, initial Query Mute Status and input
-							if (['01', '31'].includes(powerTransition)) {
+								this.needInputs = false
+								// got full list of input names from PJ, update dynamic content
+								this.updateDynamicContent() // Update all dynamic content
+								break
+							case '%2INST':
+								this.needInputs = false
+								this.projector.availInputs = resp.split(' ')
+								// get input names from PJ
+								this.getInputName(this.projector.availInputs)
+								break
+							case '%2INNM':
+								if (this.projector.inputNames.length > this.haveNames) {
+									let idx = this.projector.inputNames.findIndex((o) => o.label === null)
+									let num = this.projector.inputNames[idx].id
+									this.projector.inputNames[idx].label = `${resp} (${num})`
+									this.haveNames += 1
+									// got full list of input names from PJ, update dynamic content
+									if (this.projector.inputNames.length == this.haveNames) {
+										this.updateDynamicContent() // Update all dynamic content
+									}
+								}
+								break
+							case '%1POWR':
+								let powerTransition = this.projector.powerState + resp
+								this.projector.powerState = resp
+								this.setVariableValues({ powerState: CONFIG.POWER_STATE[resp] })
+								this.checkFeedbacks('powerState')
+								// reset warning (if any)
+								if (resp == '1' && this.lastStatus != InstanceStatus.Ok + ';Auth') {
+									this.updateStatus(InstanceStatus.Ok, 'Auth OK')
+									this.lastStatus = InstanceStatus.Ok + ';Auth'
+									this.badPassword = false
+								} else if (resp == '0' && this.lastStatus != InstanceStatus.Ok + ';Off') {
+									this.updateStatus(InstanceStatus.Ok, 'PJ Standby')
+									this.lastStatus = InstanceStatus.Ok + ';Off'
+								} else if (resp == '2' && this.lastStatus != InstanceStatus.Ok + ';Cool') {
+									this.updateStatus(InstanceStatus.Ok, 'PJ Cooling')
+									this.lastStatus = InstanceStatus.Ok + ';Cool'
+								} else if (resp == '3' && this.lastStatus != InstanceStatus.Ok + ';Warm') {
+									this.updateStatus(InstanceStatus.Ok, 'PJ Warmup')
+									this.lastStatus = InstanceStatus.Ok + ';Warm'
+								}
+								// PJ went from off/warm to powered on, initial Query Mute Status and input
+								if (['01', '31'].includes(powerTransition)) {
 									await this.sendCmd('%1AVMT ?')
 									await this.sendCmd(`%${this.projector.class}INPT ?`)
-							}
-							break
-						case '%1INPT':
-						case '%2INPT':
-							let iName = this.projector.inputNames.find((o) => o.id == resp)?.label
-							if (!iName) {
-								iName = CONFIG.INPUT_CLASS[resp[0]] + ' (' + resp + ')'
-								this.projector.inputNames.push({ id: resp, label: iName })
-							}
-							if (resp != this.projector.inputNum) {
-								this.projector.inputNum = resp
-								this.setVariableValues({ projectorInput: iName })
-								this.checkFeedbacks('projectorInput')
-								// only check input res when input changes
-								if (cmd[1] == '2') {
-									this.sendCmd('%2IRES ?')
 								}
-							}
-							break
-						case '%1LAMP':
-							let stat = resp.split(' ')
-							for (let i = 0; i < stat.length; i += 2) {
-								let thisLamp = Math.floor(i / 2)
-								let lampHours = stat[i]
-								let onState = stat[i + 1] == '1' ? 'On' : 'Off'
-								this.projector.lamps[thisLamp] = { lamp: thisLamp, hours: lampHours, on: onState }
+								break
+							case '%1INPT':
+							case '%2INPT':
+								let iName = this.projector.inputNames.find((o) => o.id == resp)?.label
+								if (!iName) {
+									iName = CONFIG.INPUT_CLASS[resp[0]] + ' (' + resp + ')'
+									this.projector.inputNames.push({ id: resp, label: iName })
+								}
+								if (resp != this.projector.inputNum) {
+									this.projector.inputNum = resp
+									this.setVariableValues({ projectorInput: iName })
+									this.checkFeedbacks('projectorInput')
+									// only check input res when input changes
+									if (cmd[1] == '2') {
+										this.sendCmd('%2IRES ?')
+									}
+								}
+								break
+							case '%1LAMP':
+								let stat = resp.split(' ')
+								for (let i = 0; i < stat.length; i += 2) {
+									let thisLamp = Math.floor(i / 2)
+									let lampHours = stat[i]
+									let onState = stat[i + 1] == '1' ? 'On' : 'Off'
+									this.projector.lamps[thisLamp] = { lamp: thisLamp, hours: lampHours, on: onState }
+									this.setVariableValues({
+										[`lamp${thisLamp + 1}Hrs`]: lampHours,
+										[`lamp${thisLamp + 1}On`]: onState,
+									})
+								}
+								// fill table for unused lamps
+								for (let i = stat.length; i < 16; i += 2) {
+									let thisLamp = Math.floor(i / 2)
+									this.projector.lamps[thisLamp] = { lamp: thisLamp, hours: 0, on: 'Off' }
+									this.setVariableValues({
+										[`lamp${thisLamp + 1}Hrs`]: '',
+										[`lamp${thisLamp + 1}On`]: 'N/A',
+									})
+								}
+								this.checkFeedbacks('lampHour', 'lampState')
+								break
+							case '%2IRES':
+								res = resp.split('x')
+								this.projector.inputHorzRes = res[0]
+								this.projector.inputVertRes = res[1]
 								this.setVariableValues({
-									[`lamp${thisLamp + 1}Hrs`]: lampHours,
-									[`lamp${thisLamp + 1}On`]: onState,
+									inputHorzRes: res[0],
+									inputVertRes: res[1],
 								})
-							}
-							// fill table for unused lamps
-							for (let i = stat.length; i < 16; i += 2) {
-								let thisLamp = Math.floor(i / 2)
-								this.projector.lamps[thisLamp] = { lamp: thisLamp, hours: 0, on: 'Off' }
+								break
+							case '%2RRES':
+								res = resp.split('x')
+								this.projector.recHorzRes = res[0]
+								this.projector.recVertRes = res[1]
 								this.setVariableValues({
-									[`lamp${thisLamp + 1}Hrs`]: '',
-									[`lamp${thisLamp + 1}On`]: 'N/A',
+									recHorzRes: res[0],
+									recVertRes: res[1],
 								})
-							}
-							this.checkFeedbacks('lampHour', 'lampState')
-							break
-						case '%2IRES':
-							res = resp.split('x')
-							this.projector.inputHorzRes = res[0]
-							this.projector.inputVertRes = res[1]
-							this.setVariableValues({
-								inputHorzRes: res[0],
-								inputVertRes: res[1],
-							})
-							break
-						case '%2RRES':
-							res = resp.split('x')
-							this.projector.recHorzRes = res[0]
-							this.projector.recVertRes = res[1]
-							this.setVariableValues({
-								recHorzRes: res[0],
-								recVertRes: res[1],
-							})
-							break
-						case '%1ERST':
-							const errs = resp.split('')
-							this.projector.errorFan = errs[0]
-							this.projector.errorLamp = errs[1]
-							this.projector.errorTemp = errs[2]
-							this.projector.errorCover = errs[3]
-							this.projector.errorFilter = errs[4]
-							this.projector.errorOther = errs[5]
-							this.setVariableValues({
-								errorFan: CONFIG.ERROR_STATE[errs[0]],
-								errorLamp: CONFIG.ERROR_STATE[errs[1]],
-								errorTemp: CONFIG.ERROR_STATE[errs[2]],
-								errorCover: CONFIG.ERROR_STATE[errs[3]],
-								errorFilter: CONFIG.ERROR_STATE[errs[4]],
-								errorOther: CONFIG.ERROR_STATE[errs[5]],
-							})
-							this.checkFeedbacks('errors')
-							break
-						case '%1AVMT':
-							this.projector.muteState = resp
-							let tmp = CONFIG.MUTE_ITEM[resp[0]]
-							tmp = tmp + ' ' + CONFIG.ON_OFF_STATE[resp[1]]
-							this.setVariableValues({ muteState: tmp })
-							this.checkFeedbacks('muteState')
-							break
-						case '%2FREZ':
-							this.projector.freezeState = resp
-							this.setVariableValues({ freezeState: CONFIG.ON_OFF_STATE[resp] })
-							this.checkFeedbacks('freezeState')
-							break
-						case '%2SNUM':
-							this.projector.serialNumber = resp
-							this.setVariableValues({ serialNumber: resp })
-							break
-						case '%2SVER':
-							this.projector.softwareVer = resp
-							this.setVariableValues({ softwareVer: resp })
-							break
-						case '%2FILT':
-							this.projector.filterUsageTime = resp
-							this.setVariableValues({ filterUsageTime: resp })
-							break
+								break
+							case '%1ERST':
+								const errs = resp.split('')
+								this.projector.errorFan = errs[0]
+								this.projector.errorLamp = errs[1]
+								this.projector.errorTemp = errs[2]
+								this.projector.errorCover = errs[3]
+								this.projector.errorFilter = errs[4]
+								this.projector.errorOther = errs[5]
+								this.setVariableValues({
+									errorFan: CONFIG.ERROR_STATE[errs[0]],
+									errorLamp: CONFIG.ERROR_STATE[errs[1]],
+									errorTemp: CONFIG.ERROR_STATE[errs[2]],
+									errorCover: CONFIG.ERROR_STATE[errs[3]],
+									errorFilter: CONFIG.ERROR_STATE[errs[4]],
+									errorOther: CONFIG.ERROR_STATE[errs[5]],
+								})
+								this.checkFeedbacks('errors')
+								break
+							case '%1AVMT':
+								this.projector.muteState = resp
+								let tmp = CONFIG.MUTE_ITEM[resp[0]]
+								tmp = tmp + ' ' + CONFIG.ON_OFF_STATE[resp[1]]
+								this.setVariableValues({ muteState: tmp })
+								this.checkFeedbacks('muteState')
+								break
+							case '%2FREZ':
+								this.projector.freezeState = resp
+								this.setVariableValues({ freezeState: CONFIG.ON_OFF_STATE[resp] })
+								this.checkFeedbacks('freezeState')
+								break
+							case '%2SNUM':
+								this.projector.serialNumber = resp
+								this.setVariableValues({ serialNumber: resp })
+								break
+							case '%2SVER':
+								this.projector.softwareVer = resp
+								this.setVariableValues({ softwareVer: resp })
+								break
+							case '%2FILT':
+								this.projector.filterUsageTime = resp
+								this.setVariableValues({ filterUsageTime: resp })
+								break
+						}
 					}
-				}
 				}
 
 				if (this.lastCmd != null && this.lastCmd != splitCmd(data)) {
-						this.log('debug', `Response mismatch, expected ${this.lastCmd}`)
+					this.log('debug', `Response mismatch, expected ${this.lastCmd}`)
 				} else {
 					this.lastCmd = null
-					}
+				}
 
 				if (this.commands.length > 0) {
 					let nextCmd = this.commands.shift()
@@ -858,7 +858,6 @@ class PJInstance extends InstanceBase {
 		this.setPresetDefinitions(presets)
 	}
 
-
 	doAction(action) {
 		let opt = action.options
 		let cmd = null
@@ -1128,19 +1127,19 @@ class PJInstance extends InstanceBase {
 		this.setVariableDefinitions(variables)
 
 		if (!rebuild) {
-		this.setVariableValues({
-			freezeState: 'N/A',
-			serialNumber: 'N/A',
-			softwareVer: 'N/A',
-			lampReplacement: 'N/A',
-			filterReplacement: 'N/A',
-			filterUsageTime: 'N/A',
-			inputHorzRes: 'N/A',
-			inputVertRes: 'N/A',
-			recHorzRes: 'N/A',
-			recVertRes: 'N/A',
-		})
-	}
+			this.setVariableValues({
+				freezeState: 'N/A',
+				serialNumber: 'N/A',
+				softwareVer: 'N/A',
+				lampReplacement: 'N/A',
+				filterReplacement: 'N/A',
+				filterUsageTime: 'N/A',
+				inputHorzRes: 'N/A',
+				inputVertRes: 'N/A',
+				recHorzRes: 'N/A',
+				recVertRes: 'N/A',
+			})
+		}
 	}
 
 	init_feedbacks() {
@@ -1349,33 +1348,33 @@ class PJInstance extends InstanceBase {
 	}
 
 	async getProjectorDetails() {
-			//any class
+		//any class
 
-			//Query Projector Name
-			await this.sendCmd('%1NAME ?')
-			//Query Projector Manufacturer
-			await this.sendCmd('%1INF1 ?')
-			//Query Projector Product Name
-			await this.sendCmd('%1INF2 ?')
-			//Query Projector Product Name
-			await this.sendCmd('%1INFO ?')
+		//Query Projector Name
+		await this.sendCmd('%1NAME ?')
+		//Query Projector Manufacturer
+		await this.sendCmd('%1INF1 ?')
+		//Query Projector Product Name
+		await this.sendCmd('%1INF2 ?')
+		//Query Projector Product Name
+		await this.sendCmd('%1INFO ?')
 
-			if (this.projector.powerState === '1' && this.needInputs) {
-				await this.sendCmd(`%${this.projector.class}INST ?`)
-			}
+		if (this.projector.powerState === '1' && this.needInputs) {
+			await this.sendCmd(`%${this.projector.class}INST ?`)
+		}
 
-			if (this.projector.class === '2') {
-				//Query Serial Number
-				await this.sendCmd('%2SNUM ?')
-				//Query Software Version
-				await this.sendCmd('%2SVER ?')
-				//Query Lamp Replacement
-				await this.sendCmd('%2RLMP ?')
-				//Query Filter Replacement
-				await this.sendCmd('%2RFIL ?')
-				//Query Recommended Resolution
-				await this.sendCmd('%2RRES ?')
-			}
+		if (this.projector.class === '2') {
+			//Query Serial Number
+			await this.sendCmd('%2SNUM ?')
+			//Query Software Version
+			await this.sendCmd('%2SVER ?')
+			//Query Lamp Replacement
+			await this.sendCmd('%2RLMP ?')
+			//Query Filter Replacement
+			await this.sendCmd('%2RFIL ?')
+			//Query Recommended Resolution
+			await this.sendCmd('%2RRES ?')
+		}
 	}
 
 	async poll() {
